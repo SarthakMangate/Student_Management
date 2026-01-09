@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'light-theme': !isDark }">
     <div class="bg-blob blob-1"></div>
     <div class="bg-blob blob-2"></div>
 
@@ -9,7 +9,14 @@
           <div class="logo-icon">S</div>
           <span class="brand-text">Student<span class="accent">Sys</span></span>
         </div>
+
         <div class="navbar-buttons">
+          <button type="button" class="theme-toggle" @click="isDark = !isDark"
+            :title="isDark ? 'Switch to Light' : 'Switch to Dark'">
+            <span v-if="isDark">☀️</span>
+            <span v-else>🌙</span>
+          </button>
+
           <button class="nav-btn btn-add" :class="{ active: viewMode === 'form' }"
             @click="viewMode = 'form'; editingStudent = null">
             Add Student
@@ -47,7 +54,6 @@
         <div class="list-controls">
           <h2 class="section-title">Directory</h2>
           <div class="filters">
-
             <select v-model="filterCourse" class="premium-select">
               <option value="">All Courses</option>
               <option>BCA</option>
@@ -57,14 +63,21 @@
           </div>
         </div>
 
-        <p v-if="filteredStudents.length === 0" class="empty">
-          No records found in the directory.
-        </p>
-
-        <div class="card-grid" v-else>
-          <StudentCard v-for="student in filteredStudents" :key="student.id" :student="student"
-            @delete-student="deleteStudent" @edit-student="openEditForm" />
+        <div v-if="loading" class="loader-overlay">
+          <span class="spinner"></span>
+          <p class="loading-text">Syncing with Database...</p>
         </div>
+
+        <template v-else>
+          <p v-if="filteredStudents.length === 0" class="empty">
+            No records found in the directory.
+          </p>
+
+          <div class="card-grid" v-else>
+            <StudentCard v-for="student in filteredStudents" :key="student.id" :student="student"
+              @delete-student="deleteStudent" @edit-student="openEditForm" />
+          </div>
+        </template>
       </div>
 
       <footer class="footer">
@@ -74,7 +87,6 @@
             <span class="brand-text">Student<span class="accent">Sys</span></span>
             <p class="brand-tagline">Advanced academic management for the modern era.</p>
           </div>
-
           <div class="footer-nav">
             <div class="footer-col">
               <h4>Platform</h4>
@@ -89,27 +101,12 @@
               <nav class="link-group">
                 <a href="#">Help Center</a>
                 <a href="#">Documentation</a>
-                <a href="#">API Status</a>
-              </nav>
-            </div>
-            <div class="footer-col">
-              <h4>Company</h4>
-              <nav class="link-group">
-                <a href="#">About Us</a>
-                <a href="#">Privacy Policy</a>
-                <a href="#">Terms of Use</a>
               </nav>
             </div>
           </div>
         </div>
-
         <div class="footer-bottom">
           <p>© 2026 StudentSys Premium. Designed for Excellence.</p>
-          <div class="social-links">
-            <span>Linked In</span>
-            <span>Twitter</span>
-            <span>GitHub</span>
-          </div>
         </div>
       </footer>
     </div>
@@ -126,30 +123,53 @@ const students = ref([])
 const filterCourse = ref('')
 const editingStudent = ref(null)
 const viewMode = ref('home')
+const isDark = ref(true)
+const loading = ref(false)
 
 onMounted(async () => {
-  const res = await api.get("/students")
-  students.value = res.data
+  loading.value = true
+  try {
+    const res = await api.get("/students")
+    students.value = res.data
+  } finally {
+    loading.value = false
+  }
 })
 
 const addStudent = async (student) => {
-  const res = await api.post("/students", student)
-  students.value.unshift(res.data)
-  viewMode.value = 'list'
+  loading.value = true
+  try {
+    const res = await api.post("/students", student)
+    students.value.unshift(res.data)
+    viewMode.value = 'list'
+  } finally {
+    loading.value = false
+  }
 }
 
 const editStudent = async (student) => {
   if (!student.id) return
-  const res = await api.put(`/students/${student.id}`, student)
-  const index = students.value.findIndex(s => s.id === student.id)
-  if (index !== -1) students.value[index] = res.data
-  viewMode.value = 'list'
-  editingStudent.value = null
+  loading.value = true
+  try {
+    const res = await api.put(`/students/${student.id}`, student)
+    const index = students.value.findIndex(s => s.id === student.id)
+    if (index !== -1) students.value[index] = res.data
+    viewMode.value = 'list'
+    editingStudent.value = null
+  } finally {
+    loading.value = false
+  }
 }
 
 const deleteStudent = async (id) => {
-  await api.delete(`/students/${id}`)
-  students.value = students.value.filter(s => s.id !== id)
+  if (!confirm("Delete this student record?")) return
+  loading.value = true
+  try {
+    await api.delete(`/students/${id}`)
+    students.value = students.value.filter(s => s.id !== id)
+  } finally {
+    loading.value = false
+  }
 }
 
 const openEditForm = (student) => {
@@ -165,4 +185,24 @@ const filteredStudents = computed(() => {
 
 <style scoped>
 @import './StudentList.css';
+
+.theme-toggle {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 0.6rem;
+  border-radius: 12px;
+  cursor: pointer;
+  margin-right: 15px;
+  font-size: 1.2rem;
+  transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.theme-toggle:hover {
+  transform: rotate(15deg) scale(1.1);
+  background: var(--primary);
+  color: white;
+}
 </style>
